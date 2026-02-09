@@ -12,6 +12,9 @@ import { interhubApp } from "./App";
 import { Provider } from "react-redux";
 import { store } from "./store/store";
 
+// Sonner
+import { Toaster } from "sonner";
+
 import "./index.css";
 
 // Create a client
@@ -22,6 +25,7 @@ createRoot(document.getElementById("root")).render(
     <QueryClientProvider client={queryClient}>
       <Provider store={store}>
         <RouterProvider router={interhubApp} />
+        <Toaster position="top-right" richColors closeButton />
       </Provider>
     </QueryClientProvider>
   </StrictMode>,
