@@ -1,14 +1,10 @@
+import { createBrowserRouter } from "react-router";
 
+import Home from "./pages/Home";
 
-function App() {
-
-  return (
-    <>
-      <div>
-        <h1 className="text-red-400">Vite + React</h1>
-      </div>
-    </>
-  )
-}
-
-export default App
+export const interhubApp = createBrowserRouter([
+  {
+    path: "/",
+    Component: Home,
+  },
+]);
