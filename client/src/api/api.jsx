@@ -33,8 +33,8 @@ const getRefreshedAccessToken = (refreshToken) => {
   if (!refreshCall) {
     refreshCall = axios
       .post(
-        `${BASE_URL}/auth/login/token/refresh/`,
-        { refresh: refreshToken },
+        `${BASE_URL}/auth/refresh-token`,
+        { refreshToken: refreshToken },
         { headers: { "Content-Type": "application/json" } },
       )
       .then((res) => {
@@ -42,7 +42,7 @@ const getRefreshedAccessToken = (refreshToken) => {
 
         // Try multiple common shapes for the returned access token
         const newAccessToken =
-          data.access ??
+          data.tokens.accessToken ??
           data.accessToken ??
           data.token ??
           (data.data &&
@@ -56,7 +56,10 @@ const getRefreshedAccessToken = (refreshToken) => {
 
         // Derive refresh token if backend returned one; otherwise keep the existing refreshToken
         const newRefreshToken =
-          data.refresh ?? data.refreshToken ?? refreshToken;
+          data.tokens.refreshToken ??
+          data.refresh ??
+          data.refreshToken ??
+          refreshToken;
 
         // Update store tokens (using plain action payload to avoid circular imports)
         const state = store.getState();
