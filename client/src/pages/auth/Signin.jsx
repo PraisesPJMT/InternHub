@@ -1,10 +1,15 @@
 import { z } from "zod";
 import { toast } from "sonner";
-import { Link } from "react-router";
+import { useDispatch } from "react-redux";
 import { Input } from "@/components/ui/input";
 import { useForm } from "@tanstack/react-form";
+import { Link, useNavigate } from "react-router";
+import { useMutation } from "@tanstack/react-query";
+import { login } from "@/store/slice/auth/authSlice";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+
+import api from "@/api/api";
 
 import Button from "@/components/ui/button";
 
@@ -14,6 +19,46 @@ const loginSchema = z.object({
 });
 
 const Signin = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  const mutation = useMutation({
+    mutationFn: async ({ email, password }) => {
+      const response = await api.post("/auth/signin", {
+        email,
+        password,
+      });
+
+      return response;
+    },
+    onSuccess: (response) => {
+      toast.success(response?.message || "Login successful!");
+      // window.location.href = "/dashboard";
+      console.log("Signin Response: ", response.data.user);
+      dispatch(
+        login({
+          user: response.data.user,
+          accessToken: response.data.tokens.accessToken,
+          refreshToken: response.data.tokens.refreshToken,
+        }),
+      );
+      if (response.data.user.role === "supervisor") {
+        if (response.data.user?.isAdmin) {
+          navigate("/admin");
+        } else {
+          navigate("/dashboard");
+        }
+      } else {
+        navigate("/");
+      }
+    },
+    onError: (error) => {
+      console.log("Signin Error: ", error);
+      const errorMsg = error.response.data.message || "An error occurred";
+      toast.error(`Login failed. ${errorMsg}`);
+    },
+  });
+
   const form = useForm({
     defaultValues: {
       email: "",
@@ -23,26 +68,7 @@ const Signin = () => {
       onChange: loginSchema,
     },
     onSubmit: async ({ value }) => {
-      try {
-        const response = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(value),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          toast.error(data.error);
-          return;
-        }
-
-        toast.success("Login successful!");
-        window.location.href = "/dashboard";
-      } catch (error) {
-        const errorMsg = error.message || "An error occurred";
-        toast.error(`Login failed. ${errorMsg}`);
-      }
+      mutation.mutate(value);
     },
   });
 
@@ -128,7 +154,7 @@ const Signin = () => {
           selector={(state) => [state.canSubmit, state.isSubmitting]}
           children={([canSubmit]) => (
             <Button
-              // loading
+              loading={mutation.isPending}
               type="submit"
               className="w-full"
               disabled={!canSubmit}
