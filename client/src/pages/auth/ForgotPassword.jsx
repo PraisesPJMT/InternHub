@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { toast } from "sonner";
+import { Icon } from "@iconify/react";
 import { MoveLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { useForm } from "@tanstack/react-form";
+import { useMutation } from "@tanstack/react-query";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -15,16 +17,21 @@ import {
 
 import { REGEXP_ONLY_DIGITS } from "input-otp";
 
+import api from "@/api/api";
+
 import Button from "@/components/ui/button";
 
 const ForgotPassword = () => {
   const [searchParams] = useSearchParams();
   const email = searchParams.get("email");
   const tk = searchParams.get("tk");
+  const success = searchParams.get("success");
 
   return (
     <main className="w-screen h-screen flex items-center justify-center">
-      {email && tk ? (
+      {success && email && tk ? (
+        <ResetPasswordSuccess />
+      ) : email && tk ? (
         <ResetPasswordForm />
       ) : email ? (
         <ConfirmEmailForm />
@@ -45,6 +52,28 @@ const ForgotPasswordForm = () => {
   const [, setSearchParams] = useSearchParams();
   // const navigate = useNavigate();
 
+  const mutation = useMutation({
+    mutationFn: async (email) => {
+      const response = await api.post("/auth/forgot-password", {
+        email,
+      });
+
+      return response;
+    },
+    onSuccess: (response, value) => {
+      toast.success(response?.message || "An OTP has been sent to your email!");
+      setSearchParams((prev) => {
+        prev.set("email", value);
+        return prev;
+      });
+    },
+    onError: (error) => {
+      console.log("Forgot Password Error: ", error);
+      const errorMsg = error.response.data.message || "An error occurred";
+      toast.error(`Forgot Password Error: ${errorMsg}`);
+    },
+  });
+
   const form = useForm({
     schema: forgotPasswordSchema,
     defaultValues: {
@@ -54,15 +83,7 @@ const ForgotPasswordForm = () => {
       onChange: forgotPasswordSchema,
     },
     onSubmit: async ({ value }) => {
-      toast.success("Verification email sent successfully");
-      // navigate(location.pathname, {
-      //   state: { email: value.email },
-      //   replace: true,
-      // });
-      setSearchParams((prev) => {
-        prev.set("email", value.email);
-        return prev;
-      });
+      mutation.mutate(value.email);
     },
   });
 
@@ -112,12 +133,12 @@ const ForgotPasswordForm = () => {
 
       <form.Subscribe
         selector={(state) => [state.canSubmit, state.isSubmitting]}
-        children={([canSubmit]) => (
+        children={() => (
           <Button
-            // loading
             type="submit"
             className="w-full"
-            disabled={!canSubmit}
+            disabled={mutation.isPending}
+            loading={mutation.isPending}
           >
             Request OTP
           </Button>
@@ -148,9 +169,51 @@ const confirmEmailSchema = z.object({
 });
 
 const ConfirmEmailForm = () => {
-  const [, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
   const canResend = timeLeft <= 0;
+
+  const mutation = useMutation({
+    mutationFn: async ({ email, otp }) => {
+      const response = await api.post("/auth/verify-otp", {
+        email,
+        otp,
+      });
+
+      return response;
+    },
+    onSuccess: (response, value) => {
+      toast.success(response?.message || "Email confirmed successfully!");
+      setSearchParams((prev) => {
+        prev.set("tk", value.otp);
+        return prev;
+      });
+    },
+    onError: (error) => {
+      console.log("Forgot Password Error: ", error);
+      const errorMsg = error.response.data.message || "An error occurred";
+      toast.error(`Forgot Password Error: ${errorMsg}`);
+    },
+  });
+
+  const resendMutation = useMutation({
+    mutationFn: async (email) => {
+      const response = await api.post("/auth/forgot-password", {
+        email,
+      });
+
+      return response;
+    },
+    onSuccess: (response) => {
+      toast.success(response?.message || "An OTP has been sent to your email!");
+      setTimeLeft(300);
+    },
+    onError: (error) => {
+      console.log("Forgot Password Error: ", error);
+      const errorMsg = error.response.data.message || "An error occurred";
+      toast.error(`Forgot Password Error: ${errorMsg}`);
+    },
+  });
 
   const form = useForm({
     defaultValues: {
@@ -160,10 +223,9 @@ const ConfirmEmailForm = () => {
       onChange: confirmEmailSchema,
     },
     onSubmit: async ({ value }) => {
-      toast.success("Email confirmed successfully");
-      setSearchParams((prev) => {
-        prev.set("tk", value.code);
-        return prev;
+      mutation.mutate({
+        email: searchParams.get("email"),
+        otp: value.code,
       });
     },
   });
@@ -189,11 +251,8 @@ const ConfirmEmailForm = () => {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleResend = () => {
-    // Add your resend logic here
-    toast.success("Code resent!");
-    setTimeLeft(300); // Reset to 5 minutes
-  };
+  const handleResend = async () =>
+    resendMutation.mutate(searchParams.get("email"));
 
   return (
     <form
@@ -259,13 +318,14 @@ const ConfirmEmailForm = () => {
 
       <form.Subscribe
         selector={(state) => [state.canSubmit, state.isSubmitting]}
-        children={([canSubmit, isSubmitting]) => (
+        children={() => (
           <Button
             type="submit"
             className="w-full"
-            disabled={!canSubmit || isSubmitting}
+            disabled={mutation.isPending || resendMutation.isPending}
+            loading={mutation.isPending}
           >
-            {isSubmitting ? "Confirming..." : "Confirm"}
+            {mutation.isPending ? "Confirming..." : "Confirm"}
           </Button>
         )}
       />
@@ -315,7 +375,31 @@ const resetPasswordSchema = z
   });
 
 const ResetPasswordForm = () => {
-  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const mutation = useMutation({
+    mutationFn: async ({ email, otp, newPassword }) => {
+      const response = await api.post("/auth/reset-password", {
+        email,
+        otp,
+        newPassword,
+      });
+
+      return response;
+    },
+    onSuccess: (response) => {
+      toast.success(response?.message || "Password reset successfully!");
+      setSearchParams((prev) => {
+        prev.set("success", "true");
+        return prev;
+      });
+    },
+    onError: (error) => {
+      console.log("Forgot Password Error: ", error);
+      const errorMsg = error.response.data.message || "An error occurred";
+      toast.error(`Forgot Password Error: ${errorMsg}`);
+    },
+  });
 
   const form = useForm({
     schema: resetPasswordSchema,
@@ -326,9 +410,12 @@ const ResetPasswordForm = () => {
     validators: {
       onChange: resetPasswordSchema,
     },
-    onSubmit: async () => {
-      toast.success("Form submitted successfully");
-      navigate("/signin");
+    onSubmit: async ({ value }) => {
+      mutation.mutate({
+        email: searchParams.get("email"),
+        otp: searchParams.get("tk"),
+        newPassword: value.password,
+      });
     },
   });
 
@@ -402,17 +489,55 @@ const ResetPasswordForm = () => {
 
       <form.Subscribe
         selector={(state) => [state.canSubmit, state.isSubmitting]}
-        children={([canSubmit]) => (
+        children={() => (
           <Button
             // loading
             type="submit"
             className="w-full"
-            disabled={!canSubmit}
+            disabled={mutation.isPending}
+            loading={mutation.isPending}
           >
             Reset Password
           </Button>
         )}
       />
+    </form>
+  );
+};
+
+const ResetPasswordSuccess = () => {
+  const navigate = useNavigate();
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      className="w-[90%] max-w-100 space-y-5"
+    >
+      <div>
+        <h1 className="text-primary text-3xl font-bold text-center">
+          Password Reset Successful
+        </h1>
+        <p className="text-center">
+          Your password has been reset successfully.
+          <br />
+          You can now proceed to sign in.
+        </p>
+      </div>
+
+      <div className="my-10 flex items-center justify-center text-green-500">
+        <Icon icon="icon-park-solid:success" className="w-30 h-30" />
+      </div>
+
+      <Button
+        type="button"
+        className="w-full"
+        onClick={() => navigate("/signin")}
+      >
+        Go to Sign In
+      </Button>
     </form>
   );
 };
