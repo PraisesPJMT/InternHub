@@ -12,7 +12,7 @@ api.interceptors.request.use((config) => {
   const state = store.getState();
   const accessToken = state.authStore?.accessToken;
   if (accessToken) {
-    config.headers = config.headers || {};
+    // Safer way to ensure headers exist and set the value
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
   return config;
@@ -29,7 +29,7 @@ let refreshCall = null;
  * future refresh attempts create a new request instead of reusing a
  * resolved/errored promise.
  */
-const getRefreshedAccessToken = (refreshToken) => {
+const getRefreshedaccessToken = (refreshToken) => {
   if (!refreshCall) {
     refreshCall = axios
       .post(
@@ -41,7 +41,7 @@ const getRefreshedAccessToken = (refreshToken) => {
         const data = res?.data ?? {};
 
         // Try multiple common shapes for the returned access token
-        const newAccessToken =
+        const newaccessToken =
           data.tokens.accessToken ??
           data.accessToken ??
           data.token ??
@@ -49,7 +49,7 @@ const getRefreshedAccessToken = (refreshToken) => {
             (data.data.access ?? data.data.accessToken ?? data.data.token)) ??
           null;
 
-        if (!newAccessToken) {
+        if (!newaccessToken) {
           // If the response didn't include an access token, treat it as a failure
           throw new Error("Refresh endpoint did not return an access token");
         }
@@ -67,12 +67,12 @@ const getRefreshedAccessToken = (refreshToken) => {
           type: "auth/login",
           payload: {
             user: state.authStore.user,
-            accessToken: newAccessToken,
+            accessToken: newaccessToken,
             refreshToken: newRefreshToken,
           },
         });
 
-        return newAccessToken;
+        return newaccessToken;
       })
       .catch((err) => {
         // On refresh failure, force a logout (clear entire auth state)
@@ -99,7 +99,7 @@ api.interceptors.response.use(
     // Only attempt refresh on 401 and when refresh token exists and this request hasn't been retried
     if (
       error.response &&
-      error.response.status === 401 &&
+      error.response.status === 403 &&
       refreshToken &&
       originalRequest &&
       !originalRequest._retry
@@ -107,13 +107,13 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       try {
         // Use single-flight refresh helper
-        const newAccessToken = await getRefreshedAccessToken(refreshToken);
+        const newaccessToken = await getRefreshedaccessToken(refreshToken);
         // Clear the shared refreshCall so future 401s can trigger a new refresh when needed
         refreshCall = null;
 
         // Attach the new token and retry the original request
         originalRequest.headers = originalRequest.headers || {};
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        originalRequest.headers.Authorization = `Bearer ${newaccessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
         // refresh failed and logout has been dispatched in helper

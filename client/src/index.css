@@ -28,6 +28,15 @@ code {
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(18.31% 0.0602 254.48);
     --primary: oklch(57.58% 0.221 275.63);
+    --primary-100: oklch(92% 0.15 275.63);
+    --primary-200: oklch(82% 0.18 275.63);
+    --primary-300: oklch(72% 0.2 275.63);
+    --primary-400: oklch(62% 0.22 275.63);
+    --primary-500: oklch(57.58% 0.221 275.63); /* original primary */
+    --primary-600: oklch(50% 0.21 275.63);
+    --primary-700: oklch(40% 0.18 275.63);
+    --primary-800: oklch(30% 0.15 275.63);
+    --primary-900: oklch(20% 0.12 275.63);
     --primary-foreground: oklch(0.985 0 0);
     --secondary: oklch(92.21% 0.0215 271.74);
     --secondary-foreground: oklch(57.58% 0.221 275.63);

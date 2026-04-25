@@ -95,12 +95,13 @@ const Signup = () => {
     mutationFn: async (data) => {
       const response = await api.post("/auth/signup/student", data);
 
-      return response;
+      return response.data;
     },
     onSuccess: (response) => {
       toast.success("Signup successful!");
       // window.location.href = "/dashboard";
       console.log("Signup Response: ", response);
+      setStep(4);
       dispatch(
         login({
           user: response.user,
@@ -108,7 +109,7 @@ const Signup = () => {
           refreshToken: response.tokens.refreshToken,
         }),
       );
-      setStep(4);
+      
     },
     onError: (error) => {
       console.log("Signup Error: ", error.response);
