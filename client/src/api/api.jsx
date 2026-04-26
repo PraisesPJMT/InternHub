@@ -42,11 +42,13 @@ const getRefreshedaccessToken = (refreshToken) => {
 
         // Try multiple common shapes for the returned access token
         const newaccessToken =
-          data.tokens.accessToken ??
+          data.tokens?.accessToken ??
+          data.data?.tokens?.accessToken ??
           data.accessToken ??
           data.token ??
-          (data.data &&
-            (data.data.access ?? data.data.accessToken ?? data.data.token)) ??
+          data.data?.access ??
+          data.data?.accessToken ??
+          data.data?.token ??
           null;
 
         if (!newaccessToken) {
@@ -56,7 +58,8 @@ const getRefreshedaccessToken = (refreshToken) => {
 
         // Derive refresh token if backend returned one; otherwise keep the existing refreshToken
         const newRefreshToken =
-          data.tokens.refreshToken ??
+          data.tokens?.refreshToken ??
+          data.data?.tokens?.refreshToken ??
           data.refresh ??
           data.refreshToken ??
           refreshToken;
@@ -97,12 +100,16 @@ api.interceptors.response.use(
     const refreshToken = state.authStore?.refreshToken;
 
     // Only attempt refresh on 401 and when refresh token exists and this request hasn't been retried
+    const isRefreshRequest = originalRequest?.url?.includes(
+      "/auth/refresh-token",
+    );
     if (
       error.response &&
-      error.response.status === 403 &&
+      error.response.status === 401 &&
       refreshToken &&
       originalRequest &&
-      !originalRequest._retry
+      !originalRequest._retry &&
+      !isRefreshRequest
     ) {
       originalRequest._retry = true;
       try {
