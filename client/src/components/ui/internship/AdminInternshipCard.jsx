@@ -17,7 +17,11 @@ const AdminInternshipCard = ({ internship }) => {
           {internship?.title}
         </p>
         <p className="text-gray-500 flex text-sm space-x-2">
-          <Icon icon="material-symbols:qr-code-rounded" width="24" height="24" />
+          <Icon
+            icon="material-symbols:qr-code-rounded"
+            width="24"
+            height="24"
+          />
 
           <b>Code: </b>
           <span>{internship?.code}</span>
@@ -26,7 +30,7 @@ const AdminInternshipCard = ({ internship }) => {
           <Icon icon="mdi:calendar" width="24" height="24" />
           <b>Duration: </b>
 
-          <span>{internship?.weeks} Weeks</span>
+          <span>{internship?.duration} Weeks</span>
         </p>
 
         <div className="flex items-center gap-2">

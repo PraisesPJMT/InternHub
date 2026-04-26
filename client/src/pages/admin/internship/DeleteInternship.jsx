@@ -2,8 +2,8 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { Icon } from "@iconify/react";
 import { useForm } from "@tanstack/react-form";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import api from "@/api/api";
 
@@ -18,41 +18,27 @@ const DeleteInternship = () => {
   const { data: internship, isLoading } = useQuery({
     queryKey: ["internship", internshipId],
     queryFn: async () => {
-      // Mock API Call
-      const response = await new Promise((resolve) => {
-        setTimeout(() => {
-          resolve({
-            data: {
-              id: "internship-01",
-              title: "Student Industrial Work Experience Scheme I",
-              code: "SIWES I",
-              duration: 12,
-              description: "This is a description",
-            },
-          });
-        }, 1000);
-      });
-
-      return response.data;
+      const response = await api.get(`/internships/${internshipId}`);
+      return response?.data ?? response;
     },
   });
 
   const mutation = useMutation({
-    mutationFn: async (data) => {
-      const response = await api.post("/auth/signup/student", data);
-
+    mutationFn: async () => {
+      const response = await api.delete(`/internships/${internshipId}`);
       return response;
     },
     onSuccess: (response) => {
-      toast.success("Signup successful!");
-      // window.location.href = "/dashboard";
-      console.log("Signup Response: ", response);
+      const message =
+        response?.message || response?.msg || "Internship deleted successfully";
+      toast.success(message);
       setStep(1);
     },
     onError: (error) => {
-      console.log("Signup Error: ", error.response);
-      const errorMsg = error.response.data.message || "An error occurred";
-      toast.error(`Signup failed. ${errorMsg}`);
+      // console.log("Delete Error: ", error?.response || error);
+      const errorMsg =
+        error?.response?.data?.message || error?.message || "An error occurred";
+      toast.error(`Delete failed. ${errorMsg}`);
     },
   });
 
@@ -65,9 +51,8 @@ const DeleteInternship = () => {
     // validators: {
     //   onChange: facultySchema,
     // },
-    onSubmit: async ({ value }) => {
-      console.log("Value: ", value);
-      mutation.mutate(value);
+    onSubmit: async () => {
+      mutation.mutate();
     },
   });
 
@@ -120,7 +105,10 @@ const DeleteInternship = () => {
 
             <p className="text-gray-500">
               Are you sure you want to delete{" "}
-              <strong>{internship?.title || "this internship"}</strong>?
+              <strong>
+                {internship?.internship?.title || "this internship"}
+              </strong>
+              ?
               <br />
               <br />
               This action will delete the internship permanently and will affect
@@ -162,10 +150,10 @@ const DeleteInternship = () => {
           <>
             <div>
               <h1 className="text-primary text-3xl font-bold text-center">
-                Staff Deleted Successfully
+                Internship Deleted Successfully
               </h1>
               <p className="text-center">
-                The staff has been deleted successfully.
+                The internship has been deleted successfully.
               </p>
             </div>
 
@@ -176,9 +164,9 @@ const DeleteInternship = () => {
             <Button
               type="button"
               className="w-full"
-              onClick={() => navigate(location.pathname.replace("/edit", ""))}
+              onClick={() => navigate(location.pathname.replace("/delete", ""))}
             >
-              Back to Staff List
+              Back to Internship List
             </Button>
           </>
         )}

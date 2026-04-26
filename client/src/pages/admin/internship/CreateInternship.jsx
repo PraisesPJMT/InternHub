@@ -5,11 +5,11 @@ import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router";
 import { Input } from "@/components/ui/input";
 import { useForm } from "@tanstack/react-form";
-import { useMutation } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 
-// import api from "@/api/api";
+import api from "@/api/api";
 
 import Button from "@/components/ui/button";
 
@@ -30,30 +30,27 @@ const CreateInternship = () => {
   const [internship, setInternship] = useState({});
 
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: async () => {
-      // const response = await api.post("/auth/signup/student", data);
-
-      // mock Await API call
-      const response = await new Promise((resolve) => {
-        setTimeout(() => {
-          resolve({ data: { id: "internship-01" } });
-        }, 1000);
-      });
-
+    mutationFn: async (data) => {
+      const response = await api.post("/internships", data);
       return response;
     },
-    onSuccess: (response) => {
-      toast.success("Internship created successfully!");
-      // window.location.href = "/dashboard";
-      console.log("Internship Response: ", response);
+    onSuccess: (res) => {
+      const payload = res?.data ?? res;
+      const message = res?.message || "Internship created successfully";
+
+      queryClient.invalidateQueries(["internships"]);
+      toast.success(message);
+
       setStep(1);
-      setInternship(response.data);
+      setInternship(payload || {});
     },
     onError: (error) => {
-      console.log("Internship Error: ", error.response);
-      const errorMsg = error.response.data.message || "An error occurred";
+      // console.log("Internship Error: ", error.response);
+      const errorMsg =
+        error?.response?.data?.message || error?.message || "An error occurred";
       toast.error(`Internship creation failed. ${errorMsg}`);
     },
   });
@@ -69,7 +66,7 @@ const CreateInternship = () => {
       onChange: internshipSchema,
     },
     onSubmit: async ({ value }) => {
-      console.log("Value: ", value);
+      // console.log("Value: ", value);
       mutation.mutate(value);
     },
   });
@@ -286,7 +283,9 @@ const CreateInternship = () => {
               type="button"
               className="w-full"
               onClick={() =>
-                navigate(location.pathname.replace("new"), internship.id)
+                internship?.id
+                  ? navigate(`/admin/internships/${internship.id}`)
+                  : navigate(location.pathname.replace("/new", ""))
               }
             >
               View Internship

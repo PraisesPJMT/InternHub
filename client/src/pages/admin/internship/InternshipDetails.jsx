@@ -1,13 +1,15 @@
-import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router";
 import {
   Card,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+import api from "@/api/api";
+
 import AppLink from "@/components/ui/AppLink";
-import { useNavigate, useParams } from "react-router";
 import ErrorState from "@/components/general/ErrorState";
 
 const InternshipDetails = () => {
@@ -18,29 +20,9 @@ const InternshipDetails = () => {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["internship", internshipId],
     queryFn: async () => {
-      // Mock API Call
-      const response = await new Promise((resolve) => {
-        setTimeout(() => {
-          resolve({
-            internship: {
-              id: "internship-01",
-              title: "Student Industrial Work Experience Scheme I",
-              code: "SIWES I",
-              duration: 12,
-              description:
-                "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed euismod, nisl eget aliquam aliquet, nisl nisl aliquam nisl, eget aliquam nisl nisl eget aliquam nisl.",
-            },
-            metrics: {
-              totalApplications: 100,
-              totalAccepted: 50,
-              totalRejected: 25,
-              totalPending: 25,
-            },
-          });
-        }, 1000);
-      });
+      const response = await api.get(`/internships/${internshipId}`);
 
-      return response;
+      return response.data;
     },
   });
 

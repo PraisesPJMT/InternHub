@@ -1,17 +1,18 @@
 import { z } from "zod";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useNavigate, useParams } from "react-router";
 import { Input } from "@/components/ui/input";
 import { useForm } from "@tanstack/react-form";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 
 // import api from "@/api/api";
 
 import Button from "@/components/ui/button";
+import api from "@/api/api";
 
 const internshipSchema = z.object({
   title: z.string().min(2, "Name must be at least 2 characters"),
@@ -27,75 +28,59 @@ const internshipSchema = z.object({
 
 const EditInternship = () => {
   const [step, setStep] = useState(0);
-  const [internship, setInternship] = useState({});
+  // const [internship, setInternship] = useState({});
 
   const navigate = useNavigate();
-  
+
   const { internshipId } = useParams();
 
-  const { isLoading } = useQuery({
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery({
     queryKey: ["internship", internshipId],
     queryFn: async () => {
-      // Mock API Call
-      const response = await new Promise((resolve) => {
-        setTimeout(() => {
-          resolve({
-            data: {
-              id: "internship-01",
-              title: "Student Industrial Work Experience Scheme I",
-              code: "SIWES I",
-              duration: 12,
-              description: "This is a description",
-            },
-          });
-        }, 1000);
-      });
-
-      setInternship(response.data);
-
-      return response.data;
+      const response = await api.get(`/internships/${internshipId}`);
+      return response?.data ?? response;
     },
   });
 
   const mutation = useMutation({
-    mutationFn: async () => {
-      // const response = await api.post("/auth/signup/student", data);
-
-      // mock Await API call
-      const response = await new Promise((resolve) => {
-        setTimeout(() => {
-          resolve({ data: { id: "internship-01" } });
-        }, 1000);
-      });
-
+    mutationFn: async (data) => {
+      const response = await api.put(`/internships/${internshipId}`, data);
       return response;
     },
     onSuccess: (response) => {
-      toast.success("Internship created successfully!");
-      // window.location.href = "/dashboard";
-      console.log("Internship Response: ", response);
+      // const payload = response?.data ?? response;
+      const message = response?.message || "Internship updated successfully";
+      toast.success(message);
+
+      // Invalidate queries to refresh lists
+      queryClient.invalidateQueries(["internships"]);
+      queryClient.invalidateQueries(["internship", internshipId]);
+
       setStep(1);
-      setInternship(response.data);
+      // setInternship(payload || {});
     },
     onError: (error) => {
-      console.log("Internship Error: ", error.response);
-      const errorMsg = error.response.data.message || "An error occurred";
-      toast.error(`Internship creation failed. ${errorMsg}`);
+      // console.log("Internship Error: ", error?.response || error);
+      const errorMsg =
+        error?.response?.data?.message || error?.message || "An error occurred";
+      toast.error(`Internship update failed. ${errorMsg}`);
     },
   });
 
   const form = useForm({
     defaultValues: {
-      title: internship?.title || "",
-      description: internship?.description || "",
-      code: internship?.code || "",
-      duration: internship?.duration || "",
+      title: "",
+      description: "",
+      code: "",
+      duration: "",
     },
     validators: {
       onChange: internshipSchema,
     },
     onSubmit: async ({ value }) => {
-      console.log("Value: ", value);
+      // console.log("Value: ", value);
       mutation.mutate(value);
     },
   });
@@ -104,6 +89,16 @@ const EditInternship = () => {
     form.reset();
     navigate(location.pathname.replace(internshipId + "/edit", ""));
   };
+
+  // When department data loads, populate form values
+  useEffect(() => {
+    if (data?.internship) {
+      form.setFieldValue("title", data?.internship?.title || "");
+      form.setFieldValue("description", data?.internship?.description || "");
+      form.setFieldValue("code", data?.internship?.code || "");
+      form.setFieldValue("duration", data?.internship?.duration || "");
+    }
+  }, [data, form]);
 
   return (
     <main className="w-screen h-screen fixed top-0 left-0 bg-black/50 flex items-center justify-center z-50">
@@ -168,7 +163,7 @@ const EditInternship = () => {
                       onChange={(e) => field.handleChange(e.target.value)}
                       aria-invalid={isInvalid}
                       placeholder="Internship"
-                      disabled={isLoading}
+                      disabled={mutation.isPending}
                     />
                     {isInvalid && (
                       <FieldError errors={field.state.meta.errors} />
@@ -197,7 +192,7 @@ const EditInternship = () => {
                         onChange={(e) => field.handleChange(e.target.value)}
                         aria-invalid={isInvalid}
                         placeholder="ICT"
-                        disabled={isLoading}
+                        disabled={mutation.isPending}
                       />
                       {isInvalid && (
                         <FieldError errors={field.state.meta.errors} />
@@ -228,7 +223,7 @@ const EditInternship = () => {
                         onChange={(e) => field.handleChange(e.target.value)}
                         aria-invalid={isInvalid}
                         placeholder="12"
-                        disabled={isLoading}
+                        disabled={mutation.isPending}
                       />
                       {isInvalid && (
                         <FieldError errors={field.state.meta.errors} />
@@ -257,7 +252,7 @@ const EditInternship = () => {
                       onChange={(e) => field.handleChange(e.target.value)}
                       aria-invalid={isInvalid}
                       placeholder="Enter a brief description of the internship"
-                      disabled={isLoading}
+                      disabled={mutation.isPending}
                     />
                     {isInvalid && (
                       <FieldError errors={field.state.meta.errors} />
