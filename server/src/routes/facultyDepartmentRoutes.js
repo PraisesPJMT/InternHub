@@ -8,6 +8,7 @@ import {
   updateFaculty,
   deleteFaculty,
   getAllDepartments,
+  getDepartmentsByFacultyId,
   getDepartmentById,
   createDepartment,
   updateDepartment,
@@ -28,6 +29,7 @@ const router = express.Router();
 router.get("/faculties/metrics", getFacultiesMetrics);
 router.get("/faculties/:id/metrics", getFacultyMetrics);
 router.get("/faculties", getAllFaculties);
+router.get("/faculties/:id/departments", getDepartmentsByFacultyId);
 router.get("/faculties/:id", getFacultyById);
 
 // Admin-only routes

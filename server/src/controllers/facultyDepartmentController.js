@@ -1,20 +1,96 @@
 import db from "../db/index.js";
 import { faculties, departments, users } from "../db/schema.js";
-import { eq } from "drizzle-orm";
+import { eq, ilike, and, or, asc, desc, sql } from "drizzle-orm";
 
 // ==================== FACULTIES ====================
 
 // Get All Faculties (Public)
 export const getAllFaculties = async (req, res) => {
   try {
-    const facultiesList = await db
-      .select()
+    const pageNumber = Number.parseInt(req.query.page, 10);
+    const limitNumber = Number.parseInt(req.query.limit, 10);
+    const page = Number.isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
+    const limit =
+      Number.isNaN(limitNumber) || limitNumber < 1
+        ? 10
+        : Math.min(limitNumber, 100);
+    const offset = (page - 1) * limit;
+    const search =
+      typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const sortBy =
+      typeof req.query.sortBy === "string" ? req.query.sortBy.trim() : "";
+    const sortOrder =
+      typeof req.query.sortOrder === "string" ? req.query.sortOrder.trim() : "";
+    const departmentsCount = sql`count(${departments.id})`.as(
+      "departmentsCount",
+    );
+    const sortColumnMap = {
+      name: faculties.name,
+      code: faculties.code,
+      createdAt: faculties.createdAt,
+      departmentsCount,
+    };
+    const sortColumn =
+      sortBy && sortColumnMap[sortBy]
+        ? sortColumnMap[sortBy]
+        : faculties.createdAt;
+    const orderByClause =
+      sortOrder && sortOrder.toLowerCase() === "desc"
+        ? desc(sortColumn)
+        : asc(sortColumn);
+
+    const filters = [];
+    if (search) {
+      const searchPattern = `%${search}%`;
+      filters.push(
+        or(
+          ilike(faculties.name, searchPattern),
+          ilike(faculties.code, searchPattern),
+          ilike(faculties.description, searchPattern),
+        ),
+      );
+    }
+
+    const whereClause = filters.length ? and(...filters) : undefined;
+
+    const baseQuery = db
+      .select({
+        id: faculties.id,
+        name: faculties.name,
+        code: faculties.code,
+        description: faculties.description,
+        createdAt: faculties.createdAt,
+        updatedAt: faculties.updatedAt,
+        departmentsCount,
+      })
       .from(faculties)
-      .orderBy(faculties.name);
+      .leftJoin(departments, eq(departments.facultyId, faculties.id))
+      .groupBy(faculties.id);
+    const facultiesQuery = whereClause
+      ? baseQuery.where(whereClause)
+      : baseQuery;
+
+    const facultiesList = await facultiesQuery
+      .orderBy(orderByClause)
+      .limit(limit)
+      .offset(offset);
+
+    const totalQuery = db.select().from(faculties);
+    const totalList = await (whereClause
+      ? totalQuery.where(whereClause)
+      : totalQuery);
+
+    const total = Array.isArray(totalList) ? totalList.length : 0;
 
     res.json({
       success: true,
       data: facultiesList,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     console.error("Get faculties error:", error);
@@ -62,6 +138,98 @@ export const getFacultyById = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error fetching faculty",
+    });
+  }
+};
+
+// Get Departments by Faculty ID (Public)
+export const getDepartmentsByFacultyId = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [faculty] = await db
+      .select()
+      .from(faculties)
+      .where(eq(faculties.id, id))
+      .limit(1);
+
+    if (!faculty) {
+      return res.status(404).json({
+        success: false,
+        message: "Faculty not found",
+      });
+    }
+
+    const pageNumber = Number.parseInt(req.query.page, 10);
+    const limitNumber = Number.parseInt(req.query.limit, 10);
+    const page = Number.isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
+    const limit =
+      Number.isNaN(limitNumber) || limitNumber < 1
+        ? 10
+        : Math.min(limitNumber, 100);
+    const offset = (page - 1) * limit;
+    const search =
+      typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const sortBy =
+      typeof req.query.sortBy === "string" ? req.query.sortBy.trim() : "";
+    const sortOrder =
+      typeof req.query.sortOrder === "string" ? req.query.sortOrder.trim() : "";
+    const sortColumnMap = {
+      name: departments.name,
+      code: departments.code,
+      createdAt: departments.createdAt,
+    };
+    const sortColumn =
+      sortBy && sortColumnMap[sortBy]
+        ? sortColumnMap[sortBy]
+        : departments.name;
+    const orderByClause =
+      sortOrder && sortOrder.toLowerCase() === "desc"
+        ? desc(sortColumn)
+        : asc(sortColumn);
+
+    const filters = [eq(departments.facultyId, id)];
+
+    if (search) {
+      const searchPattern = `%${search}%`;
+      filters.push(
+        or(
+          ilike(departments.name, searchPattern),
+          ilike(departments.code, searchPattern),
+          ilike(departments.description, searchPattern),
+        ),
+      );
+    }
+
+    const whereClause = and(...filters);
+
+    const departmentsList = await db
+      .select()
+      .from(departments)
+      .where(whereClause)
+      .orderBy(orderByClause)
+      .limit(limit)
+      .offset(offset);
+
+    const totalList = await db.select().from(departments).where(whereClause);
+
+    const total = Array.isArray(totalList) ? totalList.length : 0;
+
+    res.json({
+      success: true,
+      data: departmentsList,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error("Get departments by faculty error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching departments",
     });
   }
 };
@@ -216,6 +384,23 @@ export const deleteFaculty = async (req, res) => {
 export const getAllDepartments = async (req, res) => {
   try {
     const { facultyId } = req.query;
+    const sortBy =
+      typeof req.query.sortBy === "string" ? req.query.sortBy.trim() : "";
+    const sortOrder =
+      typeof req.query.sortOrder === "string" ? req.query.sortOrder.trim() : "";
+    const sortColumnMap = {
+      name: departments.name,
+      code: departments.code,
+      createdAt: departments.createdAt,
+    };
+    const sortColumn =
+      sortBy && sortColumnMap[sortBy]
+        ? sortColumnMap[sortBy]
+        : departments.name;
+    const orderByClause =
+      sortOrder && sortOrder.toLowerCase() === "desc"
+        ? desc(sortColumn)
+        : asc(sortColumn);
 
     let query = db.select().from(departments);
 
@@ -223,7 +408,7 @@ export const getAllDepartments = async (req, res) => {
       query = query.where(eq(departments.facultyId, facultyId));
     }
 
-    const departmentsList = await query.orderBy(departments.name);
+    const departmentsList = await query.orderBy(orderByClause);
 
     res.json({
       success: true,
@@ -256,9 +441,23 @@ export const getDepartmentById = async (req, res) => {
       });
     }
 
+    const staffList = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.departmentId, id), eq(users.role, "supervisor")));
+
+    const studentsList = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.departmentId, id), eq(users.role, "student")));
+
     res.json({
       success: true,
-      data: department,
+      data: {
+        ...department,
+        staffCount: Array.isArray(staffList) ? staffList.length : 0,
+        studentCount: Array.isArray(studentsList) ? studentsList.length : 0,
+      },
     });
   } catch (error) {
     console.error("Get department error:", error);
