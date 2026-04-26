@@ -2,6 +2,7 @@ import {
   pgTable,
   uuid,
   varchar,
+  integer,
   boolean,
   timestamp,
   text,
@@ -31,6 +32,17 @@ export const departments = pgTable("departments", {
     .references(() => faculties.id, { onDelete: "cascade" })
     .notNull(),
   description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Internships Table
+export const internships = pgTable("internships", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  code: varchar("code", { length: 50 }).notNull().unique(),
+  description: text("description"),
+  duration: integer("duration").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
