@@ -2,7 +2,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { Icon } from "@iconify/react";
 import { useForm } from "@tanstack/react-form";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
 
 import api from "@/api/api";
@@ -14,16 +14,17 @@ const DeleteFaculty = () => {
 
   const navigate = useNavigate();
   const { facultyId } = useParams();
+  const queryClient = useQueryClient()
 
   const faculty = useQuery({
     queryKey: ["faculty", facultyId],
     queryFn: async () => {
       // api returns response.data via interceptor, so this resolves to the data object
       const data = await api.get(`/faculties/${facultyId}`);
-      return data;
+      return data?.data ?? data;
     },
     onError: (error) => {
-      console.log("Faculty Error: ", error?.response || error);
+      // console.log("Faculty Error: ", error?.response || error);
       const errorMsg =
         (error?.response &&
           error.response.data &&
@@ -43,7 +44,9 @@ const DeleteFaculty = () => {
       // api interceptor returns the response data directly
       const message =
         (data && (data.message || data.msg)) || "Faculty deleted successfully";
+      queryClient.invalidateQueries(["faculties"]);
       toast.success(message);
+      
       setStep(1);
       // Redirect back to the parent route (faculty list) after a short delay to let user see the toast
       setTimeout(() => {
@@ -51,7 +54,7 @@ const DeleteFaculty = () => {
       }, 700);
     },
     onError: (error) => {
-      console.error("Delete Error: ", error?.response || error);
+      // console.error("Delete Error: ", error?.response || error);
       const errorMsg =
         (error?.response &&
           error.response.data &&
@@ -179,7 +182,7 @@ const DeleteFaculty = () => {
             <Button
               type="button"
               className="w-full"
-              onClick={() => navigate(location.pathname.replace("/edit", ""))}
+              onClick={() => navigate(location.pathname.replace("/delete", ""))}
             >
               Back to Faculty List
             </Button>

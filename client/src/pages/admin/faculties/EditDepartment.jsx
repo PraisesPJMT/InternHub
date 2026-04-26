@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import { Input } from "@/components/ui/input";
 import { useNavigate, useParams } from "react-router";
@@ -46,11 +46,11 @@ const EditDepartment = () => {
       // Use backend route exposed in the controller: GET /departments/:id
       // If your backend uses a different path, adjust accordingly.
       const response = await api.get(`/departments/${departmentId}`);
-      return response.data;
+      return response?.data ?? response;
     },
     onError: (error) => {
       // Show a toast on fetch error
-      console.error("Department Error: ", error?.response ?? error);
+      // console.error("Department Error: ", error?.response ?? error);
       const errorMsg =
         error?.response?.data?.message || error?.message || "An error occurred";
       toast.error(`Department fetch failed. ${errorMsg}`);
@@ -65,10 +65,10 @@ const EditDepartment = () => {
     queryKey: ["faculties"],
     queryFn: async () => {
       const response = await api.get("/faculties");
-      return response.data;
+      return response?.data ?? response;
     },
     onError: (error) => {
-      console.error("Faculties fetch error:", error?.response ?? error);
+      // console.error("Faculties fetch error:", error?.response ?? error);
       const errorMsg =
         error?.response?.data?.message || error?.message || "An error occurred";
       toast.error(`Faculties fetch failed. ${errorMsg}`);
@@ -81,17 +81,18 @@ const EditDepartment = () => {
     mutationFn: async (data) => {
       // PATCH/PUT to update department based on backend controller
       const response = await api.put(`/departments/${departmentId}`, data);
-      return response.data;
+      return response?.data ?? response;
     },
-    onSuccess: () => {
-      toast.success("Department updated successfully");
+    onSuccess: (response) => {
+      const message = response?.message || "Department updated successfully";
+      toast.success(message);
       // Invalidate queries to refresh lists
       queryClient.invalidateQueries(["departments"]);
       queryClient.invalidateQueries(["department", departmentId]);
       setStep(1);
     },
     onError: (error) => {
-      console.error("Update Error: ", error?.response ?? error);
+      // console.error("Update Error: ", error?.response ?? error);
       const errorMsg =
         error?.response?.data?.message || error?.message || "An error occurred";
       toast.error(`Department update failed. ${errorMsg}`);
@@ -116,15 +117,14 @@ const EditDepartment = () => {
   });
 
   // When department data loads, populate form values
-  // useEffect(() => {
-  //   if (department?.data) {
-  //     form.setValue("facultyId", department.data.facultyId || "");
-  //     form.setValue("name", department.data.name || "");
-  //     form.setValue("code", department.data.code || "");
-  //     form.setValue("description", department.data.description || "");
-  //   }
-  //   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // }, [department?.data]);
+  useEffect(() => {
+    if (department.data) {
+      form.setFieldValue("facultyId", department.data.facultyId || "");
+      form.setFieldValue("name", department.data.name || "");
+      form.setFieldValue("code", department.data.code || "");
+      form.setFieldValue("description", department.data.description || "");
+    }
+  }, [department.data, form]);
 
   const onClose = () => {
     form.reset();
@@ -234,7 +234,9 @@ const EditDepartment = () => {
                   field.state.meta.errors.length > 0;
                 return (
                   <Field data-invalid={isInvalid}>
-                    <FieldLabel htmlFor={field.name}>First Name</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>
+                      Department Name
+                    </FieldLabel>
                     <Input
                       id={field.name}
                       name={field.name}
@@ -262,7 +264,9 @@ const EditDepartment = () => {
                   field.state.meta.errors.length > 0;
                 return (
                   <Field data-invalid={isInvalid}>
-                    <FieldLabel htmlFor={field.name}>First Name</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>
+                      Department Code
+                    </FieldLabel>
                     <Input
                       id={field.name}
                       name={field.name}
@@ -340,7 +344,7 @@ const EditDepartment = () => {
           <>
             <div>
               <h1 className="text-primary text-3xl font-bold text-center">
-                Department Updated Successful
+                Department Updated Successfully
               </h1>
               <p className="text-center">
                 The department has been updated successfully.

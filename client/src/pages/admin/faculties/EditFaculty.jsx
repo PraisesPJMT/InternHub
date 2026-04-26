@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { toast } from "sonner";
 import { Icon } from "@iconify/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { useNavigate, useParams } from "react-router";
 import { useForm } from "@tanstack/react-form";
@@ -31,12 +31,12 @@ const EditFaculty = () => {
     queryKey: ["faculty", facultyId],
     queryFn: async () => {
       const response = await api.get(`/faculties/${facultyId}`);
-
-      return response.data;
+      return response?.data ?? response;
     },
     onError: (error) => {
-      console.log("Faculty Error: ", error.response);
-      const errorMsg = error.response.data.message || "An error occurred";
+      // console.log("Faculty Error: ", error.response);
+      const errorMsg =
+        error?.response?.data?.message || error?.message || "An error occurred";
       toast.error(`Faculty fetch failed. ${errorMsg}`);
     },
   });
@@ -56,11 +56,11 @@ const EditFaculty = () => {
       // Invalidate related queries so UI stays in sync
       queryClient.invalidateQueries(["faculty", facultyId]);
       queryClient.invalidateQueries(["faculties"]);
-      console.log("Update Faculty Response: ", response);
+      // console.log("Update Faculty Response: ", response);
       setStep(1);
     },
     onError: (error) => {
-      console.error("Update Faculty Error: ", error?.response || error);
+      // console.error("Update Faculty Error: ", error?.response || error);
       const errorMsg =
         error?.response?.data?.message || error?.message || "An error occurred";
       toast.error(`Failed to update faculty. ${errorMsg}`);
@@ -71,18 +71,26 @@ const EditFaculty = () => {
 
   const form = useForm({
     defaultValues: {
-      name: faculty?.data?.name || "",
-      code: faculty?.data?.code || "",
-      description: faculty?.data?.description || "",
+      name: "",
+      code: "",
+      description: "",
     },
     validators: {
       onChange: facultySchema,
     },
     onSubmit: async ({ value }) => {
-      console.log("Value: ", value);
+      // console.log("Value: ", value);
       mutation.mutate(value);
     },
   });
+
+  useEffect(() => {
+    if (faculty.data) {
+      form.setFieldValue("name", faculty.data.name || "");
+      form.setFieldValue("code", faculty.data.code || "");
+      form.setFieldValue("description", faculty.data.description || "");
+    }
+  }, [faculty.data, form]);
 
   const onClose = () => {
     form.reset();
@@ -143,7 +151,7 @@ const EditFaculty = () => {
                   field.state.meta.errors.length > 0;
                 return (
                   <Field data-invalid={isInvalid}>
-                    <FieldLabel htmlFor={field.name}>First Name</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>Faculty Name</FieldLabel>
                     <Input
                       id={field.name}
                       name={field.name}
@@ -171,7 +179,7 @@ const EditFaculty = () => {
                   field.state.meta.errors.length > 0;
                 return (
                   <Field data-invalid={isInvalid}>
-                    <FieldLabel htmlFor={field.name}>First Name</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>Faculty Code</FieldLabel>
                     <Input
                       id={field.name}
                       name={field.name}
@@ -248,12 +256,12 @@ const EditFaculty = () => {
           <>
             <div>
               <h1 className="text-primary text-3xl font-bold text-center">
-                Faculty Updated Successful
+                Faculty Updated Successfully
               </h1>
               <p className="text-center">
                 The faculty has been updated successfully.
                 <br />
-                You can now proceed to updated departments.
+                You can now proceed to update departments.
               </p>
             </div>
 

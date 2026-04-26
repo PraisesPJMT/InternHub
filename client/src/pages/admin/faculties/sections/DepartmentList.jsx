@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import Button from "@/components/ui/button";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import EmptyState from "@/components/general/EmptyState";
 import ErrorState from "@/components/general/ErrorState";
 import LoadingState from "@/components/general/LoadingState";
@@ -45,7 +45,14 @@ import { toast } from "sonner";
  * - Shows a success toast on successful load and an error toast on failure.
  * - Throws on error so React Query can handle isError state.
  */
-const fetchDepartments = async ({ page, limit, sortBy, sortOrder, search }) => {
+const fetchDepartments = async ({
+  page,
+  limit,
+  sortBy,
+  sortOrder,
+  search,
+  facultyId,
+}) => {
   try {
     const params = {};
     if (page !== undefined && page !== null) params.page = page;
@@ -55,35 +62,46 @@ const fetchDepartments = async ({ page, limit, sortBy, sortOrder, search }) => {
     if (search) params.search = search;
 
     // Call backend. The backend controller expects GET /departments (optionally with query params)
-    const response = await api.get("/departments", { params });
+    const response = await api.get(`/faculties/${facultyId}/departments`, {
+      params,
+    });
 
-    // Support either { success: true, data: [...] } or a direct array returned by the endpoint
-    const list = response && response.success ? response.data : response;
+    const payload =
+      response && response.success ? response : (response?.data ?? response);
+    const list = Array.isArray(payload?.data) ? payload.data : [];
+    const pagination = payload?.pagination ?? {};
 
-    // Map metadata (server may not provide meta; fallback to sensible defaults)
-    const total =
-      response?.meta?.total ?? (Array.isArray(list) ? list.length : 0);
+    const total = Number.isFinite(pagination.total)
+      ? pagination.total
+      : list.length;
     const computedLimit =
-      limit ||
-      (response?.meta?.limit ?? (Array.isArray(list) ? list.length : 10));
-    const totalPages =
-      response?.meta?.totalPages ??
-      Math.max(1, Math.ceil(total / computedLimit));
+      Number.isFinite(pagination.limit) && pagination.limit > 0
+        ? pagination.limit
+        : limit || 10;
+    const totalPages = Number.isFinite(pagination.totalPages)
+      ? pagination.totalPages
+      : total === 0
+        ? 0
+        : Math.ceil(total / computedLimit);
+    const currentPage =
+      Number.isFinite(pagination.page) && pagination.page > 0
+        ? pagination.page
+        : page || 1;
 
     // Notify user of success (kept lightweight)
-    toast.success("Departments loaded");
+    // toast.success("Departments loaded");
 
     return {
-      data: Array.isArray(list) ? list : [],
+      data: list,
       meta: {
         total,
-        page: page || 1,
+        page: currentPage,
         limit: computedLimit,
         totalPages,
       },
     };
   } catch (error) {
-    console.error("Fetch departments error:", error);
+    // console.error("Fetch departments error:", error);
     const message =
       error?.response?.data?.message ||
       error.message ||
@@ -103,13 +121,22 @@ const DepartmentList = () => {
   const [search, setSearch] = useState("");
 
   const navigate = useNavigate();
+  const { facultyId } = useParams();
 
   // TanStack Query Integration
   const { data, isLoading, isError, error, isPlaceholderData, refetch } =
     useQuery({
-      queryKey: ["departments", page, limit, sortBy, sortOrder, search],
+      queryKey: [
+        "departments",
+        facultyId,
+        page,
+        limit,
+        sortBy,
+        sortOrder,
+        search,
+      ],
       queryFn: () =>
-        fetchDepartments({ page, limit, sortBy, sortOrder, search }),
+        fetchDepartments({ page, limit, sortBy, sortOrder, search, facultyId }),
       placeholderData: keepPreviousData,
     });
 
@@ -131,14 +158,14 @@ const DepartmentList = () => {
         accessorKey: "staff",
         header: () => <div className="text-center">Staff</div>,
         cell: ({ row }) => (
-          <div className="text-center">{row.original.staff}</div>
+          <div className="text-center">{row.original.staff ?? 0}</div>
         ),
       },
       {
         accessorKey: "students",
         header: () => <div className="text-center">Students</div>,
         cell: ({ row }) => (
-          <div className="text-center">{row.original.students}</div>
+          <div className="text-center">{row.original.students ?? 0}</div>
         ),
       },
       {
@@ -269,7 +296,7 @@ const DepartmentList = () => {
             className="flex-shrink-0"
           />
           <Input
-            placeholder="Search faculties..."
+            placeholder="Search departments..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -295,12 +322,6 @@ const DepartmentList = () => {
             <SelectContent>
               <SelectItem value="name-asc">Name (A-Z)</SelectItem>
               <SelectItem value="name-desc">Name (Z-A)</SelectItem>
-              <SelectItem value="departments-asc">
-                Departments (Low to High)
-              </SelectItem>
-              <SelectItem value="departments-desc">
-                Departments (High to Low)
-              </SelectItem>
               <SelectItem value="createdAt-asc">Date (Oldest First)</SelectItem>
               <SelectItem value="createdAt-desc">
                 Date (Newest First)
@@ -330,14 +351,14 @@ const DepartmentList = () => {
             {isLoading ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="p-0">
-                  <LoadingState message="Loading faculties..." />
+                  <LoadingState message="Loading departments..." />
                 </TableCell>
               </TableRow>
             ) : isError ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="p-0">
                   <ErrorState
-                    title="Failed to load faculties"
+                    title="Failed to load departments"
                     description={
                       error?.message ||
                       "An error occurred while fetching the data. Please try again."
@@ -351,11 +372,11 @@ const DepartmentList = () => {
                 <TableCell colSpan={columns.length} className="p-0">
                   <EmptyState
                     // icon="tabler:folder-open"
-                    title="No faculties found"
+                    title="No departments found"
                     description={
                       search
                         ? `No results found for "${search}". Try adjusting your search.`
-                        : "There are no faculties to display at the moment."
+                        : "There are no departments to display at the moment."
                     }
                   />
                 </TableCell>
@@ -384,7 +405,7 @@ const DepartmentList = () => {
           {!isLoading && !isError && hasData && (
             <>
               Showing {data?.data?.length || 0} of {data?.meta?.total || 0}{" "}
-              faculties
+              departments
             </>
           )}
         </div>

@@ -5,7 +5,7 @@ import { Icon } from "@iconify/react";
 import { Input } from "@/components/ui/input";
 import { useNavigate, useParams } from "react-router";
 import { useForm } from "@tanstack/react-form";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 
 import api from "@/api/api";
@@ -29,26 +29,9 @@ const CreateDepartment = () => {
 
   const navigate = useNavigate();
 
-  const { departmentId } = useParams();
+  const { facultyId } = useParams();
   const queryClient = useQueryClient();
-
-  const department = useQuery({
-    queryKey: ["department", departmentId],
-    enabled: Boolean(departmentId),
-    queryFn: async () => {
-      // Try to fetch department by id.
-      // The API client returns either { success, data } or the data directly.
-      const response = await api.get(`/departments/${departmentId}`);
-      // Normalize to return the server payload (prefer .data if present)
-      return response?.data ?? response;
-    },
-    onError: (error) => {
-      console.error("Department Error: ", error?.response ?? error);
-      const errorMsg =
-        error?.response?.data?.message || error?.message || "An error occurred";
-      toast.error(`Department fetch failed. ${errorMsg}`);
-    },
-  });
+  const [createdDepartment, setCreatedDepartment] = useState(null);
 
   // const faculties = useQuery({
   //   queryKey: ["faculties"],
@@ -73,21 +56,14 @@ const CreateDepartment = () => {
       return response?.data ?? response;
     },
     onSuccess: (res) => {
-      // res may be { success, data } or the created department object
       const created = res?.data ?? res;
       toast.success(res?.message || "Department created successfully");
+      setCreatedDepartment(created || null);
       setStep(1);
-      // Invalidate departments list so other pages refresh
-      queryClient.invalidateQueries(["departments"]);
-      // If backend returned an id, navigate to the newly created department's page
-      const newId = created?.id || created?.departmentId;
-      if (newId) {
-        // Navigate to an expected route. Adjust if your routing differs.
-        navigate(`/admin/faculties/departments/${newId}`);
-      }
+      queryClient.invalidateQueries(["departments", facultyId]);
     },
     onError: (error) => {
-      console.error("Create Department Error: ", error?.response ?? error);
+      // console.error("Create Department Error: ", error?.response ?? error);
       const errorMsg =
         error?.response?.data?.message || error?.message || "An error occurred";
       toast.error(`Failed to create department. ${errorMsg}`);
@@ -96,23 +72,16 @@ const CreateDepartment = () => {
 
   const form = useForm({
     defaultValues: {
-      // If the department query returns { success, data } the desired values might live in .data.
-      // We support both response shapes for resilience during integration.
-      name:
-        (department?.data && department.data.name) || department?.name || "",
-      code:
-        (department?.data && department.data.code) || department?.code || "",
-      description:
-        (department?.data && department.data.description) ||
-        department?.description ||
-        "",
+      name: "",
+      code: "",
+      description: "",
     },
     validators: {
       onChange: departmentSchema,
     },
     onSubmit: async ({ value }) => {
       // mutate the form value to create department
-      mutation.mutate(value);
+      mutation.mutate({ ...value, facultyId });
     },
   });
 
@@ -219,7 +188,9 @@ const CreateDepartment = () => {
                   field.state.meta.errors.length > 0;
                 return (
                   <Field data-invalid={isInvalid}>
-                    <FieldLabel htmlFor={field.name}>First Name</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>
+                      Department Name
+                    </FieldLabel>
                     <Input
                       id={field.name}
                       name={field.name}
@@ -228,7 +199,7 @@ const CreateDepartment = () => {
                       onChange={(e) => field.handleChange(e.target.value)}
                       aria-invalid={isInvalid}
                       placeholder="Department of Science"
-                      disabled={department.isLoading || mutation.isLoading}
+                      disabled={mutation.isLoading}
                     />
                     {isInvalid && (
                       <FieldError errors={field.state.meta.errors} />
@@ -247,7 +218,9 @@ const CreateDepartment = () => {
                   field.state.meta.errors.length > 0;
                 return (
                   <Field data-invalid={isInvalid}>
-                    <FieldLabel htmlFor={field.name}>First Name</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>
+                      Department Code
+                    </FieldLabel>
                     <Input
                       id={field.name}
                       name={field.name}
@@ -256,7 +229,7 @@ const CreateDepartment = () => {
                       onChange={(e) => field.handleChange(e.target.value)}
                       aria-invalid={isInvalid}
                       placeholder="SCI1234"
-                      disabled={department.isLoading || mutation.isLoading}
+                      disabled={mutation.isLoading}
                     />
                     {isInvalid && (
                       <FieldError errors={field.state.meta.errors} />
@@ -284,7 +257,7 @@ const CreateDepartment = () => {
                       onChange={(e) => field.handleChange(e.target.value)}
                       aria-invalid={isInvalid}
                       placeholder="Brief description of department"
-                      disabled={department.isLoading || mutation.isLoading}
+                      disabled={mutation.isLoading}
                     />
                     {isInvalid && (
                       <FieldError errors={field.state.meta.errors} />
@@ -299,7 +272,7 @@ const CreateDepartment = () => {
                 type="button"
                 className=""
                 variant="outline"
-                disabled={department.isLoading || mutation.isLoading}
+                disabled={mutation.isLoading}
                 onClick={onClose}
               >
                 Close
@@ -311,7 +284,7 @@ const CreateDepartment = () => {
                   <Button
                     type="submit"
                     className=""
-                    disabled={department.isLoading || mutation.isLoading}
+                    disabled={mutation.isLoading}
                     loading={mutation.isLoading}
                   >
                     Create
@@ -324,7 +297,7 @@ const CreateDepartment = () => {
           <>
             <div>
               <h1 className="text-primary text-3xl font-bold text-center">
-                Department Created Successful
+                Department Created Successfully
               </h1>
               <p className="text-center">
                 The department has been created successfully.
@@ -339,7 +312,13 @@ const CreateDepartment = () => {
               type="button"
               className="w-full"
               variant="outline"
-              onClick={() => navigate(location.pathname.replace("/edit", ""))}
+              onClick={() =>
+                navigate(
+                  createdDepartment?.id
+                    ? `/admin/faculties/departments/${createdDepartment.id}`
+                    : location.pathname.replace("/new", ""),
+                )
+              }
             >
               Go to Department
             </Button>

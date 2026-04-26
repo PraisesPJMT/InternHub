@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router";
 import { useForm } from "@tanstack/react-form";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 
 import api from "@/api/api";
@@ -25,6 +25,7 @@ const CreateFaculty = () => {
   const [faculty, setFaculty] = useState({});
 
   const navigate = useNavigate();
+  const queryClient = useQueryClient()
 
   const mutation = useMutation({
     // Call the real faculty creation endpoint
@@ -36,12 +37,13 @@ const CreateFaculty = () => {
       // response is already unwrapped by api interceptor (api returns response.data)
       const message = res?.message || "Faculty created successfully";
       const createdFaculty = res?.data;
+      queryClient.invalidateQueries(["faculties"]);
       toast.success(message);
       setFaculty(createdFaculty || {});
       setStep(1);
     },
     onError: (error) => {
-      console.error("Create Faculty Error:", error?.response || error);
+      // console.error("Create Faculty Error:", error?.response || error);
       const errorMsg =
         error?.response?.data?.message || error?.message || "An error occurred";
       toast.error(`Create faculty failed. ${errorMsg}`);
@@ -58,7 +60,7 @@ const CreateFaculty = () => {
       onChange: facultySchema,
     },
     onSubmit: async ({ value }) => {
-      console.log("Value: ", value);
+      // console.log("Value: ", value);
       mutation.mutate(value);
     },
   });
@@ -211,8 +213,8 @@ const CreateFaculty = () => {
                   <Button
                     type="submit"
                     className=""
-                    disabled={mutation.isLoading}
-                    loading={mutation.isLoading}
+                    disabled={mutation.isPending}
+                    loading={mutation.isPending}
                   >
                     Create
                   </Button>
@@ -241,6 +243,7 @@ const CreateFaculty = () => {
               type="button"
               className="w-full"
               onClick={() => navigate(faculty.id)}
+              // loading={mutation.isPending}
             >
               View Faculty
             </Button>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Icon } from "@iconify/react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -34,60 +34,44 @@ import LoadingState from "@/components/general/LoadingState";
 // --- API-backed fetch function ---
 const fetchFaculties = async ({ page, limit, sortBy, sortOrder, search }) => {
   try {
-    // Call real API
-    const res = await api.get("/faculties");
-    // The api instance returns response.data via interceptor, so `res` should be the server payload
-    // Server shape expected: { success: true, data: [...] }
-    const payload = res && res.success ? res.data : (res?.data ?? res ?? []);
-    let items = Array.isArray(payload) ? payload : [];
+    const res = await api.get("/faculties", {
+      params: {
+        page,
+        limit,
+        search,
+        sortBy,
+        sortOrder,
+      },
+    });
 
-    // Client-side search
-    if (search) {
-      const q = search.toString().toLowerCase();
-      items = items.filter(
-        (f) =>
-          (f.name && f.name.toString().toLowerCase().includes(q)) ||
-          (f.code && f.code.toString().toLowerCase().includes(q)),
-      );
-    }
+    const payload = res && res.success ? res : (res?.data ?? res);
+    const items = Array.isArray(payload?.data) ? payload.data : [];
+    const pagination = payload?.pagination ?? {};
 
-    // Client-side sort
-    if (sortBy) {
-      items.sort((a, b) => {
-        let va = a?.[sortBy];
-        let vb = b?.[sortBy];
-
-        if (sortBy === "createdAt") {
-          va = va ? new Date(va) : new Date(0);
-          vb = vb ? new Date(vb) : new Date(0);
-        } else {
-          // fallback to string compare
-          va =
-            va !== undefined && va !== null ? va.toString().toLowerCase() : "";
-          vb =
-            vb !== undefined && vb !== null ? vb.toString().toLowerCase() : "";
-        }
-
-        if (va < vb) return sortOrder === "asc" ? -1 : 1;
-        if (va > vb) return sortOrder === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-
-    // Pagination (client-side since backend doesn't provide pagination)
-    const total = items.length;
-    const curPage = page || 1;
-    const perPage = limit || 5;
-    const start = (curPage - 1) * perPage;
-    const paged = items.slice(start, start + perPage);
+    const total = Number.isFinite(pagination.total)
+      ? pagination.total
+      : items.length;
+    const curPage =
+      Number.isFinite(pagination.page) && pagination.page > 0
+        ? pagination.page
+        : page || 1;
+    const perPage =
+      Number.isFinite(pagination.limit) && pagination.limit > 0
+        ? pagination.limit
+        : limit || 5;
+    const totalPages = Number.isFinite(pagination.totalPages)
+      ? pagination.totalPages
+      : total === 0
+        ? 0
+        : Math.ceil(total / perPage);
 
     return {
-      data: paged,
+      data: items,
       meta: {
         total,
         page: curPage,
         limit: perPage,
-        totalPages: Math.max(1, Math.ceil(total / perPage)),
+        totalPages,
       },
     };
   } catch (err) {
@@ -109,12 +93,32 @@ const FacultiesList = () => {
   const [limit] = useState(5);
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState("asc");
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   // TanStack Query Integration
   const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
-    queryKey: ["faculties", page, limit, sortBy, sortOrder, search],
-    queryFn: () => fetchFaculties({ page, limit, sortBy, sortOrder, search }),
+    queryKey: ["faculties", page, limit, sortBy, sortOrder, debouncedSearch],
+    queryFn: () =>
+      fetchFaculties({
+        page,
+        limit,
+        sortBy,
+        sortOrder,
+        search: debouncedSearch,
+      }),
     // keep previous data while fetching new page/sort/search
     keepPreviousData: true,
     onSuccess: () => {
@@ -145,10 +149,12 @@ const FacultiesList = () => {
         ),
       },
       {
-        accessorKey: "departments",
+        accessorKey: "departmentsCount",
         header: () => <div className="text-center">Departments</div>,
         cell: ({ row }) => (
-          <div className="text-center">{row.original.departments}</div>
+          <div className="text-center">
+            {row.original.departmentsCount ?? 0}
+          </div>
         ),
       },
       {
@@ -249,17 +255,12 @@ const FacultiesList = () => {
       {/* Search and Sort Controls */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2 flex-1 max-w-full sm:max-w-sm">
-          <Icon
-            icon="iconamoon:search-thin"
-            width="20"
-            className="flex-shrink-0"
-          />
+          <Icon icon="iconamoon:search-thin" width="20" className="shrink-0" />
           <Input
             placeholder="Search faculties..."
-            value={search}
+            value={searchInput}
             onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1); // Reset to page 1
+              setSearchInput(e.target.value);
             }}
             className="w-full"
             disabled={shouldDisableControls}
@@ -281,12 +282,12 @@ const FacultiesList = () => {
             <SelectContent>
               <SelectItem value="name-asc">Name (A-Z)</SelectItem>
               <SelectItem value="name-desc">Name (Z-A)</SelectItem>
-              <SelectItem value="departments-asc">
+              {/* <SelectItem value="departments-asc">
                 Departments (Low to High)
               </SelectItem>
               <SelectItem value="departments-desc">
                 Departments (High to Low)
-              </SelectItem>
+              </SelectItem>*/}
               <SelectItem value="createdAt-asc">Date (Oldest First)</SelectItem>
               <SelectItem value="createdAt-desc">
                 Date (Newest First)
@@ -339,8 +340,8 @@ const FacultiesList = () => {
                     // icon="tabler:folder-open"
                     title="No faculties found"
                     description={
-                      search
-                        ? `No results found for "${search}". Try adjusting your search.`
+                      searchInput
+                        ? `No results found for "${searchInput}". Try adjusting your search.`
                         : "There are no faculties to display at the moment."
                     }
                   />

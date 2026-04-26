@@ -2,8 +2,8 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { Icon } from "@iconify/react";
 import { useForm } from "@tanstack/react-form";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import api from "@/api/api";
 
@@ -14,37 +14,41 @@ const DeleteDepartment = () => {
 
   const navigate = useNavigate();
   const { facultyId, departmentId } = useParams();
+  const queryClient = useQueryClient();
 
-  const department = useQuery({
+  const { data } = useQuery({
     queryKey: ["department", departmentId],
     queryFn: async () => {
-      const response = await api.get(`/faculties/${departmentId}`);
+      const response = await api.get(`/departments/${departmentId}`);
 
       return response.data;
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries(["departments", facultyId]);
+    },
     onError: (error) => {
-      console.log("Faculty Error: ", error.response);
+      // console.log("Department Error: ", error.response);
       const errorMsg = error.response.data.message || "An error occurred";
-      toast.error(`Faculty fetch failed. ${errorMsg}`);
+      toast.error(`Department fetch failed. ${errorMsg}`);
     },
   });
 
   const mutation = useMutation({
-    mutationFn: async (data) => {
-      const response = await api.post("/auth/signup/student", data);
-
+    mutationFn: async () => {
+      const response = await api.delete(`/departments/${departmentId}`);
       return response;
     },
     onSuccess: (response) => {
-      toast.success("Signup successful!");
-      // window.location.href = "/dashboard";
-      console.log("Signup Response: ", response);
+      const message =
+        response?.message || response?.msg || "Department deleted successfully";
+      toast.success(message);
       setStep(1);
     },
     onError: (error) => {
-      console.log("Signup Error: ", error.response);
-      const errorMsg = error.response.data.message || "An error occurred";
-      toast.error(`Signup failed. ${errorMsg}`);
+      // console.log("Delete Error: ", error?.response || error);
+      const errorMsg =
+        error?.response?.data?.message || error?.message || "An error occurred";
+      toast.error(`Delete failed. ${errorMsg}`);
     },
   });
 
@@ -57,9 +61,8 @@ const DeleteDepartment = () => {
     // validators: {
     //   onChange: facultySchema,
     // },
-    onSubmit: async ({ value }) => {
-      console.log("Value: ", value);
-      mutation.mutate(value);
+    onSubmit: async () => {
+      mutation.mutate();
     },
   });
 
@@ -111,10 +114,12 @@ const DeleteDepartment = () => {
             </div>
 
             <p className="text-gray-500">
-              Are you sure you want to delete <strong>this department</strong>?
-              This action will delete the department. All staff and students of
-              this department has to be assigned new departments as well as all
-              departments <strong>This action cannot be undone.</strong>
+              Are you sure you want to delete{" "}
+              <strong>{data?.name || "this department"}</strong>? This action
+              will delete the department. All staff and students of{" "}
+              <b>{data?.name || "this department"}</b> has to be assigned new
+              departments as well as all departments{" "}
+              <strong>This action cannot be undone.</strong>
             </p>
 
             <div className="flex items-center justify-end gap-5">
@@ -163,7 +168,7 @@ const DeleteDepartment = () => {
             <Button
               type="button"
               className="w-full"
-              onClick={() => navigate(location.pathname.replace("/edit", ""))}
+              onClick={() => navigate(location.pathname.replace("/delete", ""))}
             >
               Back to Faculty
             </Button>
